@@ -3,7 +3,7 @@ safe_path_finder/.env
 safe_path_finder/bin/
 safe_path_finder/include/
 safe_path_finder/lib/
-safe_path_finder/lib64/
+safe_path_finder/lib64
 safe_path_finder/__pycache__/
 
 safe_path_finder/share/
