@@ -1,7 +1,10 @@
+from langchain_groq import ChatGroq
 from flask import Flask
 import pandas as pd
 import json
-import requests
+
+# import requests
+
 import os
 from dotenv import load_dotenv
 
@@ -91,22 +94,29 @@ def get_path():
     1. NO MARKUP: Do not wrap the output in Markdown code blocks (e.g., do not use ```json).
     2. RAW STRING: Your entire response must be a single, valid JSON object and nothing else.
     """
+
     # print(prompt)
 
-    payload = {
-        "messages": [{"role": "user", "content": prompt}],
-        "model": "openai/gpt-oss-120b",
-    }
+    # payload = {
+    #     "messages": [{"role": "user", "content": prompt}],
+    #     "model": "openai/gpt-oss-120b",
+    # }
 
-    headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
-    response = requests.post(
-        "https://api.groq.com/openai/v1/chat/completions",
-        data=json.dumps(payload),
-        headers=headers,
-    )
+    # headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
+    # response = requests.post(
+    #     "https://api.groq.com/openai/v1/chat/completions",
+    #     data=json.dumps(payload),
+    #     headers=headers,
+    # )
 
-    resp_obj = json.loads(response.json()["choices"][0]["message"]["content"])
-    return resp_obj["safest_path"]
+    # resp_obj = json.loads(response.json()["choices"][0]["message"]["content"])
+    # return resp_obj["safest_path"]
+
+    llm = ChatGroq(model="openai/gpt-oss-120b", temperature=0, max_tokens=None)
+    messages = [("system", prompt)]
+
+    response = llm.invoke(messages)
+    return json.loads(response.content)["safest_path"]
 
 
 if __name__ == "__main__":
