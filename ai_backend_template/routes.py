@@ -13,7 +13,6 @@ def login():
     user = User.query.filter_by(username=data.get("username")).first()
 
     if user and check_password_hash(user.password, data.get("password")):
-        # We store the user ID in the identity
         token = create_access_token(identity=str(user.id))
         return jsonify(access_token=token)
 
