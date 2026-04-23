@@ -24,8 +24,16 @@ def init_db():
             hashed_pw = generate_password_hash("password123")
             admin_user = User(username="admin_boss", password=hashed_pw)
             admin_user.roles.append(roles_in_db["admin"])
+            admin_user.roles.append(roles_in_db["user"])
             db.session.add(admin_user)
             print("Created admin_boss")
+
+        # adding both the roles for checking /user_handler/roles
+        admin_user = User.query.filter_by(username="admin_boss").first()
+        if admin_user:
+            if roles_in_db["user"] not in admin_user.roles:
+                admin_user.roles.append(roles_in_db["user"])
+                db.session.add(admin_user)
 
         # Normal user
         if not User.query.filter_by(username="poor_user").first():
