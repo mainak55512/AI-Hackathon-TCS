@@ -19,9 +19,3 @@ class User(db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
     roles = db.relationship("Role", secondary=user_roles, backref="users")
-
-
-class Bearer(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    token = db.Column(db.String(500))
-    username = db.Column(db.String(80), unique=True)
