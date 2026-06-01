@@ -1,0 +1,1180 @@
+===Start Diff view===
+
+- 13 from werkzeug.security import generate_password_hash, check_password_hash
++ 13 from flask_limiter import Limiter
+
+- 14 from datetime import timedelta, datetime
++ 14 from flask_limiter.util import get_remote_address
+
+- 15 from functools import wraps
++ 15 from werkzeug.security import generate_password_hash, check_password_hash
+
+- 16 import os
++ 16 from datetime import timedelta, datetime
+
+- 17 import json
++ 17 from functools import wraps
+
+- 18 import requests
++ 18 import os
+
+- 19 
++ 19 import json
+
+- 20 from dotenv import load_dotenv
++ 20 import requests
+
+- 22 load_dotenv()
++ 22 from dotenv import load_dotenv
+
+- 24 app = Flask(__name__)
++ 24 load_dotenv()
+
+- 26 app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
++ 26 app = Flask(__name__)
+
+- 27     "DATABASE_URL", "sqlite:///admin_dashboard.db"
++ 27 
+
+- 28 )
++ 28 limiter = Limiter(
+
+- 29 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
++ 29     get_remote_address,
+
+- 30 app.config["JWT_SECRET_KEY"] = os.environ.get(
++ 30     app=app,
+
+- 31     "JWT_SECRET_KEY", "dev-secret-key-CHANGE-IN-PRODUCTION"
++ 31     default_limits=["100 per day", "30 per hour"],
+
+- 32 )
++ 32     storage_uri="memory://",
+
+- 33 app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(minutes=15)
++ 33 )
+
+- 34 app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(days=7)
++ 34 
+
+- 35 
++ 35 app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
+
+- 36 db = SQLAlchemy(app)
++ 36     "DATABASE_URL", "sqlite:///admin_dashboard.db"
+
+- 37 jwt = JWTManager(app)
++ 37 )
+
+- 38 CORS(app, resources={r"/api/*": {"origins": "*"}})
++ 38 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+- 39 
++ 39 app.config["JWT_SECRET_KEY"] = os.environ.get(
+
+- 40 
++ 40     "JWT_SECRET_KEY", "dev-secret-key-CHANGE-IN-PRODUCTION"
+
+- 41 # DB Schema
++ 41 )
+
+- 42 # -------------
++ 42 app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(minutes=15)
+
+- 43 class Role(db.Model):
++ 43 app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(days=7)
+
+- 44     __tablename__ = "roles"
++ 44 
+
+- 45     id = db.Column(db.Integer, primary_key=True)
++ 45 db = SQLAlchemy(app)
+
+- 46     name = db.Column(db.String(50), unique=True, nullable=False)
++ 46 jwt = JWTManager(app)
+
+- 47     users = db.relationship("User", backref="role", lazy=True)
++ 47 CORS(app, resources={r"/api/*": {"origins": "*"}})
+
+- 49     def to_dict(self):
++ 49 
+
+- 50         return {"id": self.id, "name": self.name}
++ 50 # DB Schema
+
+- 51 
++ 51 # -------------
+
+- 52 
++ 52 class Role(db.Model):
+
+- 53 class User(db.Model):
++ 53     __tablename__ = "roles"
+
+- 54     __tablename__ = "users"
++ 54     id = db.Column(db.Integer, primary_key=True)
+
+- 55     id = db.Column(db.Integer, primary_key=True)
++ 55     name = db.Column(db.String(50), unique=True, nullable=False)
+
+- 56     username = db.Column(db.String(80), unique=True, nullable=False)
++ 56     users = db.relationship("User", backref="role", lazy=True)
+
+- 57     email = db.Column(db.String(120), unique=True, nullable=False)
++ 57 
+
+- 58     password_hash = db.Column(db.String(255), nullable=False)
++ 58     def to_dict(self):
+
+- 59     role_id = db.Column(db.Integer, db.ForeignKey("roles.id"), nullable=False)
++ 59         return {"id": self.id, "name": self.name}
+
+- 60     is_active = db.Column(db.Boolean, default=True)
++ 60 
+
+- 61     created_at = db.Column(db.DateTime, default=datetime.utcnow)
++ 61 
+
+- 62 
++ 62 class User(db.Model):
+
+- 63     def set_password(self, password: str):
++ 63     __tablename__ = "users"
+
+- 64         self.password_hash = generate_password_hash(password)
++ 64     id = db.Column(db.Integer, primary_key=True)
+
+- 65 
++ 65     username = db.Column(db.String(80), unique=True, nullable=False)
+
+- 66     def check_password(self, password: str) -> bool:
++ 66     email = db.Column(db.String(120), unique=True, nullable=False)
+
+- 67         return check_password_hash(self.password_hash, password)
++ 67     password_hash = db.Column(db.String(255), nullable=False)
+
+- 68 
++ 68     role_id = db.Column(db.Integer, db.ForeignKey("roles.id"), nullable=False)
+
+- 69     def to_dict(self):
++ 69     is_active = db.Column(db.Boolean, default=True)
+
+- 70         return {
++ 70     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+- 71             "id": self.id,
++ 71 
+
+- 72             "username": self.username,
++ 72     def set_password(self, password: str):
+
+- 73             "email": self.email,
++ 73         self.password_hash = generate_password_hash(password)
+
+- 74             "role": self.role.name,
++ 74 
+
+- 75             "is_active": self.is_active,
++ 75     def check_password(self, password: str) -> bool:
+
+- 76             "created_at": self.created_at.isoformat(),
++ 76         return check_password_hash(self.password_hash, password)
+
+- 77         }
++ 77 
+
+- 78 
++ 78     def to_dict(self):
+
+- 79 
++ 79         return {
+
+- 80 class TokenBlocklist(db.Model):
++ 80             "id": self.id,
+
+- 81     """Stores revoked JTIs so logout is immediate."""
++ 81             "username": self.username,
+
+- 82 
++ 82             "email": self.email,
+
+- 83     __tablename__ = "token_blocklist"
++ 83             "role": self.role.name,
+
+- 84     id = db.Column(db.Integer, primary_key=True)
++ 84             "is_active": self.is_active,
+
+- 85     jti = db.Column(db.String(36), nullable=False, index=True)
++ 85             "created_at": self.created_at.isoformat(),
+
+- 86     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
++ 86         }
+
+- 89 # JWT handlers
++ 89 class TokenBlocklist(db.Model):
+
+- 90 # ------------
++ 90     """Stores revoked JTIs so logout is immediate."""
+
+- 91 @jwt.token_in_blocklist_loader
++ 91 
+
+- 92 def check_if_token_revoked(jwt_header, jwt_payload):
++ 92     __tablename__ = "token_blocklist"
+
+- 93     jti = jwt_payload["jti"]
++ 93     id = db.Column(db.Integer, primary_key=True)
+
+- 94     return db.session.query(TokenBlocklist.id).filter_by(jti=jti).scalar() is not None
++ 94     jti = db.Column(db.String(36), nullable=False, index=True)
+
+- 95 
++ 95     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+- 97 @jwt.revoked_token_loader
++ 97 
+
+- 98 def revoked_token_callback(jwt_header, jwt_payload):
++ 98 # JWT handlers
+
+- 99     return jsonify({"error": "Token has been revoked", "code": "TOKEN_REVOKED"}), 401
++ 99 # ------------
+
+- 100 
++ 100 @jwt.token_in_blocklist_loader
+
+- 101 
++ 101 def check_if_token_revoked(jwt_header, jwt_payload):
+
+- 102 @jwt.expired_token_loader
++ 102     jti = jwt_payload["jti"]
+
+- 103 def expired_token_callback(jwt_header, jwt_payload):
++ 103     return db.session.query(TokenBlocklist.id).filter_by(jti=jti).scalar() is not None
+
+- 104     return jsonify({"error": "Token has expired", "code": "TOKEN_EXPIRED"}), 401
++ 104 
+
+- 106 
++ 106 @jwt.revoked_token_loader
+
+- 107 @jwt.invalid_token_loader
++ 107 def revoked_token_callback(jwt_header, jwt_payload):
+
+- 108 def invalid_token_callback(error):
++ 108     return jsonify({"error": "Token has been revoked", "code": "TOKEN_REVOKED"}), 401
+
+- 109     return jsonify({"error": "Invalid token", "code": "INVALID_TOKEN"}), 422
++ 109 
+
+- 111 
++ 111 @jwt.expired_token_loader
+
+- 112 @jwt.unauthorized_loader
++ 112 def expired_token_callback(jwt_header, jwt_payload):
+
+- 113 def missing_token_callback(error):
++ 113     return jsonify({"error": "Token has expired", "code": "TOKEN_EXPIRED"}), 401
+
+- 114     return jsonify({"error": "Authorization required", "code": "MISSING_TOKEN"}), 401
++ 114 
+
+- 116 
++ 116 @jwt.invalid_token_loader
+
+- 117 # RBAC
++ 117 def invalid_token_callback(error):
+
+- 118 # ------
++ 118     return jsonify({"error": "Invalid token", "code": "INVALID_TOKEN"}), 422
+
+- 119 def role_required(*roles):
++ 119 
+
+- 120     """Decorator: restrict endpoint to users with one of the given roles."""
++ 120 
+
+- 121 
++ 121 @jwt.unauthorized_loader
+
+- 122     def decorator(fn):
++ 122 def missing_token_callback(error):
+
+- 123         @wraps(fn)
++ 123     return jsonify({"error": "Authorization required", "code": "MISSING_TOKEN"}), 401
+
+- 124         @jwt_required()
++ 124 
+
+- 125         def wrapper(*args, **kwargs):
++ 125 
+
+- 126             user_id = get_jwt_identity()
++ 126 # RBAC
+
+- 127             user = User.query.get(user_id)
++ 127 # ------
+
+- 128             if not user:
++ 128 def role_required(*roles):
+
+- 129                 return jsonify({"error": "User not found"}), 404
++ 129     """Decorator: restrict endpoint to users with one of the given roles."""
+
+- 130             if user.role.name not in roles:
++ 130 
+
+- 131                 return jsonify(
++ 131     def decorator(fn):
+
+- 132                     {
++ 132         @wraps(fn)
+
+- 133                         "error": f"Access denied. Required role(s): {', '.join(roles)}",
++ 133         @jwt_required()
+
+- 134                         "code": "FORBIDDEN",
++ 134         def wrapper(*args, **kwargs):
+
+- 135                     }
++ 135             user_id = get_jwt_identity()
+
+- 136                 ), 403
++ 136             user = User.query.get(user_id)
+
+- 137             return fn(*args, **kwargs)
++ 137             if not user:
+
+- 138 
++ 138                 return jsonify({"error": "User not found"}), 404
+
+- 139         return wrapper
++ 139             if user.role.name not in roles:
+
+- 140 
++ 140                 return jsonify(
+
+- 141     return decorator
++ 141                     {
+
+- 142 
++ 142                         "error": f"Access denied. Required role(s): {', '.join(roles)}",
+
+- 143 
++ 143                         "code": "FORBIDDEN",
+
+- 144 def admin_required(fn):
++ 144                     }
+
+- 145     return role_required("Admin")(fn)
++ 145                 ), 403
+
+- 146 
++ 146             return fn(*args, **kwargs)
+
+- 148 # Auth Routes
++ 148         return wrapper
+
+- 149 # ------------
++ 149 
+
+- 150 @app.route("/api/auth/login", methods=["POST"])
++ 150     return decorator
+
+- 151 def login():
++ 151 
+
+- 152     data = request.get_json(silent=True) or {}
++ 152 
+
+- 153     username = data.get("username", "").strip()
++ 153 def admin_required(fn):
+
+- 154     password = data.get("password", "")
++ 154     return role_required("Admin")(fn)
+
+- 156     if not username or not password:
++ 156 
+
+- 157         return jsonify({"error": "Username and password required"}), 400
++ 157 # Auth Routes
+
+- 158 
++ 158 # ------------
+
+- 159     user = User.query.filter_by(username=username).first()
++ 159 @app.route("/api/auth/login", methods=["POST"])
+
+- 160     if not user or not user.check_password(password):
++ 160 def login():
+
+- 161         return jsonify({"error": "Invalid credentials"}), 401
++ 161     data = request.get_json(silent=True) or {}
+
+- 162     if not user.is_active:
++ 162     username = data.get("username", "").strip()
+
+- 163         return jsonify({"error": "Account is disabled"}), 403
++ 163     password = data.get("password", "")
+
+- 165     additional_claims = {"role": user.role.name, "username": user.username}
++ 165     if not username or not password:
+
+- 166     access_token = create_access_token(
++ 166         return jsonify({"error": "Username and password required"}), 400
+
+- 167         identity=user.id, additional_claims=additional_claims
++ 167 
+
+- 168     )
++ 168     user = User.query.filter_by(username=username).first()
+
+- 169     refresh_token = create_refresh_token(identity=user.id)
++ 169     if not user or not user.check_password(password):
+
+- 170 
++ 170         return jsonify({"error": "Invalid credentials"}), 401
+
+- 171     return jsonify(
++ 171     if not user.is_active:
+
+- 172         {
++ 172         return jsonify({"error": "Account is disabled"}), 403
+
+- 173             "access_token": access_token,
++ 173 
+
+- 174             "refresh_token": refresh_token,
++ 174     additional_claims = {"role": user.role.name, "username": user.username}
+
+- 175             "user": user.to_dict(),
++ 175     access_token = create_access_token(
+
+- 176         }
++ 176         identity=user.id, additional_claims=additional_claims
+
+- 178 
++ 178     refresh_token = create_refresh_token(identity=user.id)
+
+- 180 @app.route("/api/auth/refresh", methods=["POST"])
++ 180     return jsonify(
+
+- 181 @jwt_required(refresh=True)
++ 181         {
+
+- 182 def refresh():
++ 182             "access_token": access_token,
+
+- 183     identity = get_jwt_identity()
++ 183             "refresh_token": refresh_token,
+
+- 184     user = User.query.get(identity)
++ 184             "user": user.to_dict(),
+
+- 185     if not user:
++ 185         }
+
+- 186         return jsonify({"error": "User not found"}), 404
++ 186     )
+
+- 188     additional_claims = {"role": user.role.name, "username": user.username}
++ 188 
+
+- 189     access_token = create_access_token(
++ 189 @app.route("/api/auth/refresh", methods=["POST"])
+
+- 190         identity=identity, additional_claims=additional_claims
++ 190 @jwt_required(refresh=True)
+
+- 191     )
++ 191 def refresh():
+
+- 192     return jsonify({"access_token": access_token})
++ 192     identity = get_jwt_identity()
+
+- 193 
++ 193     user = User.query.get(identity)
+
+- 194 
++ 194     if not user:
+
+- 195 @app.route("/api/auth/logout", methods=["DELETE"])
++ 195         return jsonify({"error": "User not found"}), 404
+
+- 196 @jwt_required()
++ 196 
+
+- 197 def logout():
++ 197     additional_claims = {"role": user.role.name, "username": user.username}
+
+- 198     jti = get_jwt()["jti"]
++ 198     access_token = create_access_token(
+
+- 199     db.session.add(TokenBlocklist(jti=jti))
++ 199         identity=identity, additional_claims=additional_claims
+
+- 200     db.session.commit()
++ 200     )
+
+- 201     return jsonify({"message": "Successfully logged out"})
++ 201     return jsonify({"access_token": access_token})
+
+- 204 @app.route("/api/auth/me", methods=["GET"])
++ 204 @app.route("/api/auth/logout", methods=["DELETE"])
+
+- 206 def me():
++ 206 def logout():
+
+- 207     user = User.query.get(get_jwt_identity())
++ 207     jti = get_jwt()["jti"]
+
+- 208     if not user:
++ 208     db.session.add(TokenBlocklist(jti=jti))
+
+- 209         return jsonify({"error": "User not found"}), 404
++ 209     db.session.commit()
+
+- 210     return jsonify(user.to_dict())
++ 210     return jsonify({"message": "Successfully logged out"})
+
+- 213 @app.route("/api/dashboard/stats", methods=["GET"])
++ 213 @app.route("/api/auth/me", methods=["GET"])
+
+- 215 def dashboard_stats():
++ 215 def me():
+
+- 216     total_users = User.query.count()
++ 216     user = User.query.get(get_jwt_identity())
+
+- 217     active_users = User.query.filter_by(is_active=True).count()
++ 217     if not user:
+
+- 218     admin_count = User.query.join(Role).filter(Role.name == "Admin").count()
++ 218         return jsonify({"error": "User not found"}), 404
+
+- 219     viewer_count = User.query.join(Role).filter(Role.name == "Viewer").count()
++ 219     return jsonify(user.to_dict())
+
+- 220     return jsonify(
++ 220 
+
+- 221         {
++ 221 
+
+- 222             "total_users": total_users,
++ 222 @app.route("/api/dashboard/stats", methods=["GET"])
+
+- 223             "active_users": active_users,
++ 223 @jwt_required()
+
+- 224             "inactive_users": total_users - active_users,
++ 224 def dashboard_stats():
+
+- 225             "admin_count": admin_count,
++ 225     total_users = User.query.count()
+
+- 226             "viewer_count": viewer_count,
++ 226     active_users = User.query.filter_by(is_active=True).count()
+
+- 227         }
++ 227     admin_count = User.query.join(Role).filter(Role.name == "Admin").count()
+
+- 228     )
++ 228     viewer_count = User.query.join(Role).filter(Role.name == "Viewer").count()
+
+- 229 
++ 229     return jsonify(
+
+- 230 
++ 230         {
+
+- 231 @app.route("/api/users", methods=["GET"])
++ 231             "total_users": total_users,
+
+- 232 @jwt_required()
++ 232             "active_users": active_users,
+
+- 233 def get_users():
++ 233             "inactive_users": total_users - active_users,
+
+- 234     """All authenticated users can list users."""
++ 234             "admin_count": admin_count,
+
+- 235     users = User.query.order_by(User.created_at.desc()).all()
++ 235             "viewer_count": viewer_count,
+
+- 236     return jsonify([u.to_dict() for u in users])
++ 236         }
+
+- 237 
++ 237     )
+
+- 239 @app.route("/api/users", methods=["POST"])
++ 239 
+
+- 240 @admin_required
++ 240 @app.route("/api/users", methods=["GET"])
+
+- 241 def create_user():
++ 241 @jwt_required()
+
+- 242     data = request.get_json(silent=True) or {}
++ 242 def get_users():
+
+- 243     required = ["username", "email", "password", "role"]
++ 243     """All authenticated users can list users."""
+
+- 244     missing = [f for f in required if not data.get(f)]
++ 244     users = User.query.order_by(User.created_at.desc()).all()
+
+- 245     if missing:
++ 245     return jsonify([u.to_dict() for u in users])
+
+- 246         return jsonify({"error": f"Missing fields: {', '.join(missing)}"}), 400
++ 246 
+
+- 248     role = Role.query.filter_by(name=data["role"]).first()
++ 248 @app.route("/api/users", methods=["POST"])
+
+- 249     if not role:
++ 249 @admin_required
+
+- 250         return jsonify({"error": f"Role '{data['role']}' does not exist"}), 400
++ 250 def create_user():
+
+- 251 
++ 251     data = request.get_json(silent=True) or {}
+
+- 252     if User.query.filter_by(username=data["username"]).first():
++ 252     required = ["username", "email", "password", "role"]
+
+- 253         return jsonify({"error": "Username already taken"}), 409
++ 253     missing = [f for f in required if not data.get(f)]
+
+- 254     if User.query.filter_by(email=data["email"]).first():
++ 254     if missing:
+
+- 255         return jsonify({"error": "Email already registered"}), 409
++ 255         return jsonify({"error": f"Missing fields: {', '.join(missing)}"}), 400
+
+- 257     user = User(username=data["username"], email=data["email"], role=role)
++ 257     role = Role.query.filter_by(name=data["role"]).first()
+
+- 258     user.set_password(data["password"])
++ 258     if not role:
+
+- 259     db.session.add(user)
++ 259         return jsonify({"error": f"Role '{data['role']}' does not exist"}), 400
+
+- 260     db.session.commit()
++ 260 
+
+- 261     return jsonify(user.to_dict()), 201
++ 261     if User.query.filter_by(username=data["username"]).first():
+
+- 262 
++ 262         return jsonify({"error": "Username already taken"}), 409
+
+- 263 
++ 263     if User.query.filter_by(email=data["email"]).first():
+
+- 264 @app.route("/api/users/<int:user_id>", methods=["GET"])
++ 264         return jsonify({"error": "Email already registered"}), 409
+
+- 265 @jwt_required()
++ 265 
+
+- 266 def get_user(user_id):
++ 266     user = User(username=data["username"], email=data["email"], role=role)
+
+- 267     user = User.query.get_or_404(user_id)
++ 267     user.set_password(data["password"])
+
+- 268     return jsonify(user.to_dict())
++ 268     db.session.add(user)
+
+- 269 
++ 269     db.session.commit()
+
+- 270 
++ 270     return jsonify(user.to_dict()), 201
+
+- 271 @app.route("/api/users/<int:user_id>", methods=["PUT"])
++ 271 
+
+- 272 @admin_required
++ 272 
+
+- 273 def update_user(user_id):
++ 273 @app.route("/api/users/<int:user_id>", methods=["GET"])
+
+- 274     user = User.query.get_or_404(user_id)
++ 274 @jwt_required()
+
+- 275     data = request.get_json(silent=True) or {}
++ 275 def get_user(user_id):
+
+- 276 
++ 276     user = User.query.get_or_404(user_id)
+
+- 277     if "role" in data:
++ 277     return jsonify(user.to_dict())
+
+- 278         role = Role.query.filter_by(name=data["role"]).first()
++ 278 
+
+- 279         if not role:
++ 279 
+
+- 280             return jsonify({"error": f"Role '{data['role']}' does not exist"}), 400
++ 280 @app.route("/api/users/<int:user_id>", methods=["PUT"])
+
+- 281         user.role = role
++ 281 @admin_required
+
+- 282 
++ 282 def update_user(user_id):
+
+- 283     if "is_active" in data:
++ 283     user = User.query.get_or_404(user_id)
+
+- 284         user.is_active = bool(data["is_active"])
++ 284     data = request.get_json(silent=True) or {}
+
+- 285     if "email" in data and data["email"]:
++ 285 
+
+- 286         existing = User.query.filter_by(email=data["email"]).first()
++ 286     if "role" in data:
+
+- 287         if existing and existing.id != user_id:
++ 287         role = Role.query.filter_by(name=data["role"]).first()
+
+- 288             return jsonify({"error": "Email already in use"}), 409
++ 288         if not role:
+
+- 289         user.email = data["email"]
++ 289             return jsonify({"error": f"Role '{data['role']}' does not exist"}), 400
+
+- 290     if "password" in data and data["password"]:
++ 290         user.role = role
+
+- 291         user.set_password(data["password"])
++ 291 
+
+- 292 
++ 292     if "is_active" in data:
+
+- 293     db.session.commit()
++ 293         user.is_active = bool(data["is_active"])
+
+- 294     return jsonify(user.to_dict())
++ 294     if "email" in data and data["email"]:
+
+- 295 
++ 295         existing = User.query.filter_by(email=data["email"]).first()
+
+- 296 
++ 296         if existing and existing.id != user_id:
+
+- 297 @app.route("/api/users/<int:user_id>", methods=["DELETE"])
++ 297             return jsonify({"error": "Email already in use"}), 409
+
+- 298 @admin_required
++ 298         user.email = data["email"]
+
+- 299 def delete_user(user_id):
++ 299     if "password" in data and data["password"]:
+
+- 300     # Prevent self-deletion
++ 300         user.set_password(data["password"])
+
+- 301     current_user_id = get_jwt_identity()
++ 301 
+
+- 302     if user_id == current_user_id:
++ 302     db.session.commit()
+
+- 303         return jsonify({"error": "You cannot delete your own account"}), 400
++ 303     return jsonify(user.to_dict())
+
+- 305     user = User.query.get_or_404(user_id)
++ 305 
+
+- 306     db.session.delete(user)
++ 306 @app.route("/api/users/<int:user_id>", methods=["DELETE"])
+
+- 307     db.session.commit()
++ 307 @admin_required
+
+- 308     return jsonify({"message": f"User '{user.username}' deleted successfully"})
++ 308 def delete_user(user_id):
+
+- 309 
++ 309     # Prevent self-deletion
+
+- 310 
++ 310     current_user_id = get_jwt_identity()
+
+- 311 @app.route("/api/roles", methods=["GET"])
++ 311     if user_id == current_user_id:
+
+- 312 @jwt_required()
++ 312         return jsonify({"error": "You cannot delete your own account"}), 400
+
+- 313 def get_roles():
++ 313 
+
+- 314     roles = Role.query.all()
++ 314     user = User.query.get_or_404(user_id)
+
+- 315     return jsonify([r.to_dict() for r in roles])
++ 315     db.session.delete(user)
+
+- 316 
++ 316     db.session.commit()
+
+- 317 
++ 317     return jsonify({"message": f"User '{user.username}' deleted successfully"})
+
+- 318 @app.route("/api/gen-comment", methods=["POST"])
++ 318 
+
+- 319 # @jwt_required()
++ 319 
+
+- 320 def get_ai_comments():
++ 320 @app.route("/api/roles", methods=["GET"])
+
+- 321     payload = request.get_json(silent=True) or {}
++ 321 @jwt_required()
+
+- 322     payload_body = json.loads(payload["body"])
++ 322 def get_roles():
+
+- 323     # print(payload)
++ 323     roles = Role.query.all()
+
+- 324     url = payload_body["url"]
++ 324     return jsonify([r.to_dict() for r in roles])
+
+- 325     method = payload_body["method"]
++ 325 
+
+- 326     req_body = payload_body["body"]
++ 326 
+
+- 327 
++ 327 @app.route("/api/gen-comment", methods=["POST"])
+
+- 328     headers = {"Accept": "application/json"}
++ 328 # @jwt_required()
+
+- 329 
++ 329 def get_ai_comments():
+
+- 330     data = None
++ 330     payload = request.get_json(silent=True) or {}
+
+- 331     if method.upper() != "GET":
++ 331     payload_body = json.loads(payload["body"])
+
+- 332         headers["Content-Type"] = "application/json"
++ 332     # print(payload)
+
+- 333         # Ensure req_body is a JSON string
++ 333     url = payload_body["url"]
+
+- 334         if req_body is not None:
++ 334     method = payload_body["method"]
+
+- 335             if isinstance(req_body, (dict, list)):
++ 335     req_body = payload_body["body"]
+
+- 336                 data = json.dumps(req_body)
++ 336 
+
+- 337             else:
++ 337     headers = {"Accept": "application/json"}
+
+- 338                 data = req_body
++ 338 
+
+- 339 
++ 339     data = None
+
+- 340     response = requests.request(
++ 340     if method.upper() != "GET":
+
+- 341         method=method.upper(),
++ 341         headers["Content-Type"] = "application/json"
+
+- 342         url=url,
++ 342         # Ensure req_body is a JSON string
+
+- 343         headers=headers,
++ 343         if req_body is not None:
+
+- 344         data=data,
++ 344             if isinstance(req_body, (dict, list)):
+
+- 345         timeout=10,
++ 345                 data = json.dumps(req_body)
+
+- 346     )
++ 346             else:
+
+- 347 
++ 347                 data = req_body
+
+- 348     content_type = response.headers.get("Content-Type", "")
++ 348 
+
+- 349     # if "application/json" in content_type:
++ 349     response = requests.request(
+
+- 350     result_data = response.json()
++ 350         method=method.upper(),
+
+- 351     prompt = f"""
++ 351         url=url,
+
+- 352 generate proper comments from supplied json or xml payload.
++ 352         headers=headers,
+
+- 353 *CRITICAL INSTRUCTIONS*:
++ 353         data=data,
+
+- 354 return the output only as JSON without any markdown tags like ```json
++ 354         timeout=10,
+
+- 355 Inputs:
++ 355     )
+
+- 356 {json.dumps(result_data, indent=4)}
++ 356 
+
+- 357 Output format:
++ 357     content_type = response.headers.get("Content-Type", "")
+
+- 358 {{
++ 358     # if "application/json" in content_type:
+
+- 359             "available_fields": *list of all the available fields*,
++ 359     result_data = response.json()
+
+- 360             "comments": [
++ 360     prompt = f"""
+
+- 361                             {{
++ 361 generate proper comments from supplied json or xml payload.
+
+- 362                                 "field_name": "name of the filed",
++ 362 *CRITICAL INSTRUCTIONS*:
+
+- 363                                 "comment": "Comment regarding that filed"
++ 363 return the output only as JSON without any markdown tags like ```json
+
+- 364                             }}
++ 364 Inputs:
+
+- 365             ]
++ 365 {json.dumps(result_data, indent=4)}
+
+- 366 }}
++ 366 Output format:
+
+- 367 """
++ 367 {{
+
+- 368 
++ 368             "available_fields": *list of all the available fields*,
+
+- 369     # else:
++ 369             "comments": [
+
+- 370     #     result_data = response.text
++ 370                             {{
+
+- 371 
++ 371                                 "field_name": "name of the filed",
+
+- 372     llm = ChatGroq(model="openai/gpt-oss-120b", temperature=0, max_tokens=None)
++ 372                                 "comment": "Comment regarding that filed"
+
+- 373     messages = [("system", prompt)]
++ 373                             }}
+
+- 374 
++ 374             ]
+
+- 375     response = llm.invoke(messages)
++ 375 }}
+
+- 376 
++ 376 """
+
+- 377     return {"ok": True, "status": 200, "data": response.content}
++ 377 
+
+- 378 
++ 378     # else:
+
+- 379 
++ 379     #     result_data = response.text
+
+- 380 @app.errorhandler(404)
++ 380 
+
+- 381 def not_found(e):
++ 381     llm = ChatGroq(model="openai/gpt-oss-120b", temperature=0, max_tokens=None)
+
+- 382     return jsonify({"error": "Resource not found"}), 404
++ 382     messages = [("system", prompt)]
+
+- 384 
++ 384     response = llm.invoke(messages)
+
+- 385 @app.errorhandler(405)
++ 385 
+
+- 386 def method_not_allowed(e):
++ 386     return {"ok": True, "status": 200, "data": response.content}
+
+- 387     return jsonify({"error": "Method not allowed"}), 405
++ 387 
+
+- 389 
++ 389 @app.errorhandler(404)
+
+- 390 @app.errorhandler(500)
++ 390 def not_found(e):
+
+- 391 def internal_error(e):
++ 391     return jsonify({"error": "Resource not found"}), 404
+
+- 392     return jsonify({"error": "Internal server error"}), 500
++ 392 
+
+- 394 
++ 394 @app.errorhandler(405)
+
+- 395 # DB Initialization
++ 395 def method_not_allowed(e):
+
+- 396 # -----------------
++ 396     return jsonify({"error": "Method not allowed"}), 405
+
+- 397 def init_db():
++ 397 
+
+- 398     with app.app_context():
++ 398 
+
+- 399         db.create_all()
++ 399 @app.errorhandler(500)
+
+- 400 
++ 400 def internal_error(e):
+
+- 401         for role_name in ["Admin", "Viewer"]:
++ 401     return jsonify({"error": "Internal server error"}), 500
+
+- 402             if not Role.query.filter_by(name=role_name).first():
++ 402 
+
+- 403                 db.session.add(Role(name=role_name))
++ 403 
+
+- 404         db.session.commit()
++ 404 # DB Initialization
+
+- 405 
++ 405 # -----------------
+
+- 406         # default admin user
++ 406 def init_db():
+
+- 407         if not User.query.filter_by(username="admin").first():
++ 407     with app.app_context():
+
+- 408             admin_role = Role.query.filter_by(name="Admin").first()
++ 408         db.create_all()
+
+- 409             admin = User(username="admin", email="admin@example.com", role=admin_role)
++ 409 
+
+- 410             admin.set_password("admin123")
++ 410         for role_name in ["Admin", "Viewer"]:
+
+- 411             db.session.add(admin)
++ 411             if not Role.query.filter_by(name=role_name).first():
+
+- 412 
++ 412                 db.session.add(Role(name=role_name))
+
+- 413         # default viewer user
++ 413         db.session.commit()
+
+- 414         if not User.query.filter_by(username="viewer").first():
++ 414 
+
+- 415             viewer_role = Role.query.filter_by(name="Viewer").first()
++ 415         # default admin user
+
+- 416             viewer = User(
++ 416         if not User.query.filter_by(username="admin").first():
+
+- 417                 username="viewer", email="viewer@example.com", role=viewer_role
++ 417             admin_role = Role.query.filter_by(name="Admin").first()
+
+- 418             )
++ 418             admin = User(username="admin", email="admin@example.com", role=admin_role)
+
+- 419             viewer.set_password("viewer123")
++ 419             admin.set_password("admin123")
+
+- 420             db.session.add(viewer)
++ 420             db.session.add(admin)
+
+- 422         db.session.commit()
++ 422         # default viewer user
+
+- 423         print("Database initialized with default users:")
++ 423         if not User.query.filter_by(username="viewer").first():
+
+- 424 
++ 424             viewer_role = Role.query.filter_by(name="Viewer").first()
+
+- 425 
++ 425             viewer = User(
+
+- 426 if __name__ == "__main__":
++ 426                 username="viewer", email="viewer@example.com", role=viewer_role
+
+- 427     init_db()
++ 427             )
+
+- 428     app.run(debug=True, port=5000)
++ 428             viewer.set_password("viewer123")
+
+- 429 
++ 429             db.session.add(viewer)
+
+- 431 
++ 431         db.session.commit()
+
+- 432 
++ 432         print("Database initialized with default users:")
+
+- 435 
++ 435 if __name__ == "__main__":
+
+- 436 
++ 436     init_db()
+
+- 437 
++ 437     app.run(debug=True, port=5000)
+
+
+===End of Diff===

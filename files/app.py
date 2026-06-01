@@ -10,32 +10,97 @@ from flask_jwt_extended import (
     get_jwt,
 )
 from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import timedelta, datetime
 from functools import wraps
 import os
 import json
 import requests
-
 from dotenv import load_dotenv
 
 load_dotenv()
 
-app = Flask(__name__)
+# jwt = JWTManager()
 
-app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
-    "DATABASE_URL", "sqlite:///admin_dashboard.db"
-)
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-app.config["JWT_SECRET_KEY"] = os.environ.get(
-    "JWT_SECRET_KEY", "dev-secret-key-CHANGE-IN-PRODUCTION"
-)
-app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(minutes=15)
-app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(days=7)
 
-db = SQLAlchemy(app)
-jwt = JWTManager(app)
-CORS(app, resources={r"/api/*": {"origins": "*"}})
+# def create_app():
+#     app = Flask(__name__)
+#     app.config["JWT_SECRET_KEY"] = "your-secret-key"
+
+#     jwt.init_app(app)
+
+#     from routes import routes
+
+#     app.register_blueprint(extras, url_prefix="/api")
+
+#     limiter = Limiter(
+#         get_remote_address,
+#         app=app,
+#         default_limits=["100 per day", "30 per hour"],
+#         storage_uri="memory://",
+#     )
+
+#     app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
+#         "DATABASE_URL", "sqlite:///admin_dashboard.db"
+#     )
+#     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+#     app.config["JWT_SECRET_KEY"] = os.environ.get(
+#         "JWT_SECRET_KEY", "dev-secret-key-CHANGE-IN-PRODUCTION"
+#     )
+#     app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(minutes=15)
+#     app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(days=7)
+
+#     db = SQLAlchemy(app)
+#     jwt = JWTManager(app)
+#     CORS(app, resources={r"/api/*": {"origins": "*"}})
+#     CORS(app, resources={r"/extras/*": {"origins": "*"}})
+
+#     return app
+
+
+# # app = Flask(__name__)
+# app = create_app()
+
+
+db = SQLAlchemy()
+jwt = JWTManager()
+limiter = Limiter(
+    get_remote_address,
+    default_limits=["100 per day", "30 per hour"],
+    storage_uri="memory://",
+)
+
+
+def create_app():
+    app = Flask(__name__)
+
+    # All config up front
+    app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
+        "DATABASE_URL", "sqlite:///admin_dashboard.db"
+    )
+    app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+    app.config["JWT_SECRET_KEY"] = os.environ.get(
+        "JWT_SECRET_KEY", "dev-secret-key-CHANGE-IN-PRODUCTION"
+    )
+    app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(minutes=15)
+    app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(days=7)
+
+    # Bind extensions to app
+    db.init_app(app)
+    jwt.init_app(app)
+    limiter.init_app(app)
+    CORS(app, resources={r"/api/*": {"origins": "*"}, r"/extras/*": {"origins": "*"}})
+
+    from extras import extras
+
+    app.register_blueprint(extras, url_prefix="/api")
+
+    return app
+
+
+app = create_app()
 
 
 # DB Schema
@@ -423,6 +488,6 @@ def init_db():
         print("Database initialized with default users:")
 
 
-#if __name__ == "__main__":
-#    init_db()
-#    app.run(debug=True, port=5000)
+if __name__ == "__main__":
+    init_db()
+    app.run(debug=True, port=5000)

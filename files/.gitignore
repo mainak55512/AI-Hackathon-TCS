@@ -4,3 +4,5 @@ var/
 include/
 lib/
 bin/
+
+.crul/
